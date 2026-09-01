@@ -592,6 +592,18 @@ async function retrieve(query, role, topK=5){
   return scored.slice(0, topK);
 }
 
+// Extractive QA models (DistilBERT-SQuAD) are trained on full, well-formed
+// questions over prose paragraphs. A one- or two-word fragment like "name" or
+// "Certificate ?" gives the span-selection model almost no context, and it
+// will often return a confident-sounding but wrong guess (e.g. picking a
+// nearby word like "Native" or "Gujarati" off a resume). Rather than show a
+// misleadingly high confidence score on a query type the model can't handle
+// reliably, catch it before running QA and ask the user to rephrase.
+function looksLikeFragment(q){
+  const words = q.trim().split(/\s+/).filter(Boolean);
+  return words.length < 3;
+}
+
 async function askQuestion(){
   const q = askInput.value.trim();
   if(!q) return;
@@ -604,6 +616,17 @@ async function askQuestion(){
     }
     return;
   }
+  if(!state.forcedQueries) state.forcedQueries = new Set();
+  if(looksLikeFragment(q) && !state.forcedQueries.has(q)){
+    addMsg('user', escapeHtml(q));
+    askInput.value = '';
+    const safeQ = escapeHtml(q).replace(/'/g, "\\'");
+    addMsg('bot', `That reads like a short fragment rather than a full question. Extractive QA needs a complete question to find the right answer span — a single word like "<b>${escapeHtml(q)}</b>" gives the model too little context, and it can return a confident-sounding but wrong guess.
+      <div style="margin-top:8px; font-size:12px; color:var(--muted);">Try rephrasing, e.g. "What is the candidate's name?" or "What certifications are listed?"</div>
+      <button class="btn btn-ghost btn-sm" style="margin-top:8px; font-size:11px; padding:4px 10px;" onclick="window.__forceAsk('${safeQ}')">Ask anyway</button>`);
+    return;
+  }
+  const wasForcedFragment = looksLikeFragment(q);
   addMsg('user', escapeHtml(q));
   askInput.value = '';
   askBtn.disabled = true;
@@ -639,17 +662,31 @@ async function askQuestion(){
       <div style="margin-top:8px; font-size:12px; color:var(--muted);">Try rephrasing the question, switching to a role with broader access, or loading more documents.</div>
       <div style="margin-top:6px; font-size:11px; color:var(--dim);">${latency} ms</div>`;
   } else {
-    const confClass = best.score > 0.6 ? 'conf-high' : (best.score > 0.3 ? 'conf-med' : 'conf-low');
-    const confLabel = best.score > 0.6 ? 'high confidence' : (best.score > 0.3 ? 'medium confidence' : 'low confidence');
+    // A forced fragment query can still get a numerically high span score —
+    // DistilBERT-SQuAD scores confidence in its selected answer, not in
+    // whether the question itself was well-formed. Cap the displayed label
+    // so a lucky-but-unreliable match on a one-word query never reads as
+    // "high confidence" to the user.
+    const effScore = wasForcedFragment ? Math.min(best.score, 0.55) : best.score;
+    const confClass = effScore > 0.6 ? 'conf-high' : (effScore > 0.3 ? 'conf-med' : 'conf-low');
+    const confLabel = effScore > 0.6 ? 'high confidence' : (effScore > 0.3 ? 'medium confidence' : 'low confidence');
+    const fragmentNote = wasForcedFragment ? `<div style="margin-top:6px; font-size:11px; color:var(--warn);">⚠️ Short/fragment query — treat this answer as unverified.</div>` : '';
     const answerId = 'ans-' + Date.now();
     thinkEl.parentElement.innerHTML = `<b id="${answerId}">${escapeHtml(best.answer)}</b>
       <span class="conf ${confClass}">${confLabel} · ${(best.score*100).toFixed(1)}%</span>
       <button class="btn btn-ghost btn-sm" style="font-size:10.5px; padding:2px 8px; margin-left:6px;" onclick="window.__copyAnswer('${answerId}', this)">Copy</button>
       <span class="cite">Source: ${escapeHtml(best.source.docName)} — "${escapeHtml(best.source.text.slice(0,150))}…"</span>
+      ${fragmentNote}
       <div style="margin-top:6px; font-size:11px; color:var(--dim);">${latency} ms · retrieved ${results.length} candidates</div>`;
   }
   askBtn.disabled = false;
 }
+window.__forceAsk = (q) => {
+  if(!state.forcedQueries) state.forcedQueries = new Set();
+  state.forcedQueries.add(q);
+  askInput.value = q;
+  askQuestion();
+};
 window.__copyAnswer = (id, btn) => {
   const text = document.getElementById(id)?.textContent || '';
   navigator.clipboard?.writeText(text).then(() => {
