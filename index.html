@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DocuSense AI — Enterprise Document Intelligence, 100% Client-Side</title>
+<meta name="description" content="Upload documents, ask questions, get grounded answers with citations. Real embeddings + real extractive QA running entirely in your browser — no API keys, no backend, no data leaves your device.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A7%A0%3C/text%3E%3C/svg%3E">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  :root{
+    --bg:#0a0e17; --surface:#111827; --surface2:#182236; --surface3:#1f2c47;
+    --border:#26314a; --text:#eaeef7; --muted:#8b96ad; --dim:#5b6780;
+    --accent:#5b8cff; --accent2:#34d399; --warn:#f5a623; --danger:#ef5a5a;
+    --mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{margin:0; background:var(--bg); color:var(--text); font-family:var(--sans); line-height:1.6; -webkit-font-smoothing:antialiased;}
+  a{color:var(--accent);}
+  .wrap{max-width:1180px; margin:0 auto; padding:0 24px;}
+  code, .mono{font-family:var(--mono);}
+
+  /* NAV */
+  nav.topnav{position:sticky; top:0; z-index:50; background:rgba(10,14,23,.85); backdrop-filter:blur(10px); border-bottom:1px solid var(--border);}
+  nav.topnav .inner{max-width:1180px; margin:0 auto; padding:14px 24px; display:flex; align-items:center; justify-content:space-between;}
+  .brand{display:flex; align-items:center; gap:10px; font-weight:800; font-size:17px; letter-spacing:-.02em;}
+  .brand .dot{width:10px;height:10px;border-radius:3px;background:linear-gradient(135deg,var(--accent),var(--accent2)); display:inline-block;}
+  nav.topnav .links{display:flex; gap:22px; font-size:14px;}
+  nav.topnav .links a{color:var(--muted); text-decoration:none; font-weight:600;}
+  nav.topnav .links a:hover{color:var(--text);}
+  .navcta{background:var(--accent); color:#05070c; padding:8px 16px; border-radius:8px; font-weight:700; font-size:13px; text-decoration:none;}
+
+  /* HERO */
+  header.hero{padding:88px 0 56px; text-align:center; border-bottom:1px solid var(--border); background:radial-gradient(ellipse 60% 50% at 50% 0%, rgba(91,140,255,.15), transparent);}
+  .kicker{display:inline-flex; align-items:center; gap:8px; font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--accent2); background:rgba(52,211,153,.1); border:1px solid rgba(52,211,153,.3); padding:6px 14px; border-radius:999px; margin-bottom:22px;}
+  header.hero h1{font-size:clamp(32px,5vw,54px); line-height:1.08; margin:0 0 18px; letter-spacing:-.03em; font-weight:800;}
+  header.hero h1 span{background:linear-gradient(135deg,var(--accent),var(--accent2)); -webkit-background-clip:text; background-clip:text; color:transparent;}
+  header.hero p.sub{max-width:680px; margin:0 auto 30px; color:var(--muted); font-size:18px;}
+  .hero-badges{display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-bottom:34px;}
+  .badge{font-size:12.5px; color:var(--muted); background:var(--surface2); border:1px solid var(--border); padding:6px 12px; border-radius:8px; font-weight:600;}
+  .hero-actions{display:flex; gap:14px; justify-content:center; flex-wrap:wrap;}
+  .btn{border:none; cursor:pointer; font-family:inherit; font-weight:700; font-size:15px; padding:13px 26px; border-radius:10px; transition:.15s transform, .15s opacity;}
+  .btn:active{transform:scale(.97);}
+  .btn-primary{background:linear-gradient(135deg,var(--accent),#3a6ee0); color:#fff; box-shadow:0 8px 24px -8px rgba(91,140,255,.6);}
+  .btn-primary:hover{opacity:.92;}
+  .btn-ghost{background:var(--surface2); color:var(--text); border:1px solid var(--border);}
+  .btn-ghost:hover{background:var(--surface3);}
+  .btn-sm{padding:8px 14px; font-size:13px; border-radius:8px;}
+  .btn:disabled{opacity:.45; cursor:not-allowed;}
+
+  section{padding:64px 0;}
+  .section-head{text-align:center; max-width:640px; margin:0 auto 44px;}
+  .section-head .tag{color:var(--accent); font-weight:700; font-size:12.5px; letter-spacing:.08em; text-transform:uppercase;}
+  .section-head h2{font-size:clamp(24px,3.4vw,36px); margin:10px 0 12px; letter-spacing:-.02em;}
+  .section-head p{color:var(--muted); font-size:16px;}
+
+  /* APP LAYOUT */
+  #app{border-top:1px solid var(--border); background:var(--surface); }
+  .app-grid{display:grid; grid-template-columns:280px 1fr 320px; gap:0; min-height:640px; border:1px solid var(--border); border-radius:16px; overflow:hidden; margin-top:8px;}
+  .panel{background:var(--surface); padding:20px;}
+  .panel + .panel{border-left:1px solid var(--border);}
+  .panel h3{font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:0 0 14px; display:flex; align-items:center; justify-content:space-between;}
+
+  .dropzone{border:1.5px dashed var(--border); border-radius:12px; padding:20px 14px; text-align:center; cursor:pointer; transition:.15s; margin-bottom:14px;}
+  .dropzone:hover, .dropzone.drag{border-color:var(--accent); background:rgba(91,140,255,.06);}
+  .dropzone .ico{font-size:26px; margin-bottom:6px;}
+  .dropzone p{margin:0; font-size:13px; color:var(--muted);}
+  .dropzone p b{color:var(--text);}
+
+  .doclist{display:flex; flex-direction:column; gap:8px; margin-bottom:16px;}
+  .doc-item{background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:10px 12px; font-size:13px;}
+  .doc-item .row1{display:flex; align-items:center; justify-content:space-between; gap:8px;}
+  .doc-item .name{font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:150px;}
+  .doc-item .meta{color:var(--dim); font-size:11.5px; margin-top:3px;}
+  .doc-item .rm{background:none; border:none; color:var(--dim); cursor:pointer; font-size:15px; padding:0 2px;}
+  .doc-item .rm:hover{color:var(--danger);}
+  .tag-pill{font-size:10px; font-weight:700; padding:2px 7px; border-radius:999px; text-transform:uppercase; letter-spacing:.03em;}
+  .tag-public{background:rgba(52,211,153,.15); color:var(--accent2);}
+  .tag-restricted{background:rgba(239,90,90,.15); color:var(--danger);}
+  .tag-processing{background:rgba(245,166,35,.15); color:var(--warn);}
+
+  select.roleselect{width:100%; background:var(--surface2); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:9px 10px; font-family:inherit; font-size:13px; font-weight:600;}
+  .role-note{font-size:11.5px; color:var(--dim); margin-top:8px; line-height:1.5;}
+
+  /* CHAT */
+  .chat-col{display:flex; flex-direction:column; height:100%;}
+  #chatlog{flex:1; overflow-y:auto; max-height:520px; display:flex; flex-direction:column; gap:14px; padding-right:4px; margin-bottom:14px;}
+  .msg{max-width:88%; padding:12px 14px; border-radius:12px; font-size:14.5px;}
+  .msg.user{align-self:flex-end; background:var(--accent); color:#05070c; font-weight:600; border-bottom-right-radius:3px;}
+  .msg.bot{align-self:flex-start; background:var(--surface2); border:1px solid var(--border); border-bottom-left-radius:3px;}
+  .msg.system{align-self:center; background:none; color:var(--dim); font-size:12.5px; text-align:center; max-width:100%;}
+  .msg .conf{display:inline-block; margin-top:8px; font-size:11px; padding:3px 8px; border-radius:6px; font-weight:700;}
+  .conf-high{background:rgba(52,211,153,.15); color:var(--accent2);}
+  .conf-med{background:rgba(245,166,35,.15); color:var(--warn);}
+  .conf-low{background:rgba(239,90,90,.15); color:var(--danger);}
+  .msg .cite{display:block; margin-top:8px; font-size:12px; color:var(--muted); border-left:2px solid var(--accent); padding-left:8px;}
+  .chips{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;}
+  .chip{font-size:12px; background:var(--surface2); border:1px solid var(--border); color:var(--muted); padding:6px 11px; border-radius:999px; cursor:pointer;}
+  .chip:hover{border-color:var(--accent); color:var(--text);}
+  .askrow{display:flex; gap:8px;}
+  .askrow input{flex:1; background:var(--surface2); border:1px solid var(--border); color:var(--text); padding:12px 14px; border-radius:10px; font-family:inherit; font-size:14px;}
+  .askrow input:focus{outline:none; border-color:var(--accent);}
+
+  /* SOURCES */
+  .src-item{background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:11px 12px; margin-bottom:10px; font-size:12.5px;}
+  .src-item .h{display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;}
+  .src-item .h b{font-size:12.5px;}
+  .src-item .score{font-family:var(--mono); color:var(--accent2); font-weight:700; font-size:11.5px;}
+  .src-item p{margin:0; color:var(--muted); line-height:1.5;}
+  .src-item mark{background:rgba(91,140,255,.35); color:#fff; border-radius:3px; padding:0 2px;}
+
+  .loading-bar{height:6px; background:var(--surface2); border-radius:99px; overflow:hidden; margin:8px 0;}
+  .loading-bar .fill{height:100%; background:linear-gradient(90deg,var(--accent),var(--accent2)); width:0%; transition:width .2s;}
+  .status-line{font-size:12px; color:var(--dim); display:flex; justify-content:space-between; margin-bottom:4px;}
+
+  /* PIPELINE DIAGRAM */
+  .pipeline{display:flex; align-items:stretch; gap:0; flex-wrap:wrap; justify-content:center; margin:36px 0;}
+  .pnode{background:var(--surface2); border:1px solid var(--border); border-radius:12px; padding:16px 18px; text-align:center; min-width:130px; flex:1 1 130px; max-width:170px;}
+  .pnode .ico{font-size:22px; margin-bottom:8px;}
+  .pnode b{display:block; font-size:13px; margin-bottom:4px;}
+  .pnode span{font-size:11px; color:var(--dim);}
+  .parrow{display:flex; align-items:center; color:var(--dim); font-size:20px; padding:0 6px;}
+
+  .cards3{display:grid; grid-template-columns:repeat(3,1fr); gap:18px;}
+  .card{background:var(--surface2); border:1px solid var(--border); border-radius:14px; padding:22px;}
+  .card .ico{font-size:24px; margin-bottom:10px;}
+  .card h4{margin:0 0 8px; font-size:16px;}
+  .card p{margin:0; color:var(--muted); font-size:14px;}
+
+  table.evaltable{width:100%; border-collapse:collapse; font-size:13.5px; background:var(--surface2); border-radius:12px; overflow:hidden;}
+  table.evaltable th{text-align:left; background:var(--surface3); padding:11px 14px; font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted);}
+  table.evaltable td{padding:11px 14px; border-top:1px solid var(--border); vertical-align:top;}
+  .pass{color:var(--accent2); font-weight:700;}
+  .fail{color:var(--danger); font-weight:700;}
+  .metric-row{display:flex; gap:14px; flex-wrap:wrap; margin:20px 0;}
+  .metric-box{flex:1; min-width:140px; background:var(--surface2); border:1px solid var(--border); border-radius:12px; padding:16px 18px;}
+  .metric-box .num{font-size:26px; font-weight:800; font-family:var(--mono);}
+  .metric-box .lbl{font-size:12px; color:var(--muted); margin-top:2px;}
+
+  footer{border-top:1px solid var(--border); padding:40px 0; color:var(--dim); font-size:13px;}
+  footer .foot-grid{display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;}
+  .disclaimer{background:var(--surface2); border:1px solid var(--border); border-radius:12px; padding:14px 18px; font-size:13px; color:var(--muted); margin-top:18px; text-align:center;}
+
+  ::-webkit-scrollbar{width:8px; height:8px;}
+  ::-webkit-scrollbar-thumb{background:var(--border); border-radius:8px;}
+
+  @media (max-width:980px){
+    .app-grid{grid-template-columns:1fr;}
+    .panel + .panel{border-left:none; border-top:1px solid var(--border);}
+    .cards3{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+  <div class="inner">
+    <div class="brand"><span class="dot"></span> DocuSense AI</div>
+    <div class="links">
+      <a href="#app">Try it</a>
+      <a href="#pipeline">How it works</a>
+      <a href="#eval">Evaluation</a>
+      <a href="#readme-note">Architecture</a>
+    </div>
+    <a class="navcta" href="#app">Ask a question →</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="kicker">● Runs live in this tab · no server · no API key</span>
+    <h1>Ask real questions of<br><span>real documents.</span> Get cited answers.</h1>
+    <p class="sub">DocuSense AI is a retrieval-augmented document intelligence system — parsing, embeddings, semantic search and extractive question-answering — that runs entirely client-side. Nothing you upload ever leaves this browser tab.</p>
+    <div class="hero-badges">
+      <span class="badge">🧠 Real sentence embeddings (MiniLM-L6)</span>
+      <span class="badge">🎯 Real extractive QA (DistilBERT-SQuAD)</span>
+      <span class="badge">🔒 Role-based access control</span>
+      <span class="badge">📊 Built-in evaluation harness</span>
+    </div>
+    <div class="hero-actions">
+      <button class="btn btn-primary" onclick="document.getElementById('app').scrollIntoView({behavior:'smooth'})">Try the live demo</button>
+      <a class="btn btn-ghost" href="#pipeline">See the architecture</a>
+    </div>
+  </div>
+</header>
+
+<section id="app">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="tag">Live system</div>
+      <h2>Upload. Ask. Verify.</h2>
+      <p>Load the bundled sample documents or drop in your own PDF/TXT/MD files. Every answer below is generated by models running in this tab right now.</p>
+    </div>
+
+    <div class="status-line"><span id="modelStatus">Models not loaded yet — they load automatically on first question (~55&nbsp;MB, cached after first visit)</span><span id="modelPct"></span></div>
+    <div class="loading-bar"><div class="fill" id="modelBar"></div></div>
+
+    <div class="app-grid">
+      <!-- LEFT: documents -->
+      <div class="panel">
+        <h3>Document Library <span id="docCount">0</span></h3>
+        <div class="dropzone" id="dropzone">
+          <div class="ico">📄</div>
+          <p><b>Drop files</b> or click to upload<br>PDF, TXT, or MD</p>
+          <input type="file" id="fileInput" multiple accept=".pdf,.txt,.md" style="display:none">
+        </div>
+        <button class="btn btn-ghost btn-sm" style="width:100%; margin-bottom:16px;" id="loadSamplesBtn">＋ Load 3 sample documents</button>
+        <div class="doclist" id="docList"></div>
+
+        <h3 style="margin-top:22px;">Viewing as</h3>
+        <select class="roleselect" id="roleSelect">
+          <option value="public">🌐 Public visitor</option>
+          <option value="manager">👤 Manager</option>
+          <option value="finance">💰 Finance team (full access)</option>
+        </select>
+        <p class="role-note">This simulates row-level permissions: documents tagged <b>Restricted</b> are excluded from retrieval unless the active role is allowed to see them — enforced at the retrieval step, not just in the UI.</p>
+      </div>
+
+      <!-- CENTER: chat -->
+      <div class="panel chat-col">
+        <h3>Ask a question</h3>
+        <div id="chatlog">
+          <div class="msg system">Load documents on the left, then ask a question below. Try the suggestions once documents are ready.</div>
+        </div>
+        <div class="chips" id="suggestChips"></div>
+        <div class="askrow">
+          <input type="text" id="askInput" placeholder="e.g. What is the refund policy?" disabled>
+          <button class="btn btn-primary btn-sm" id="askBtn" disabled>Ask</button>
+        </div>
+      </div>
+
+      <!-- RIGHT: sources -->
+      <div class="panel">
+        <h3>Retrieved sources</h3>
+        <div id="sourcesPanel"><p style="color:var(--dim); font-size:13px;">Sources for your most recent question will appear here, ranked by cosine similarity.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="pipeline">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="tag">Architecture</div>
+      <h2>The full RAG pipeline, in your browser</h2>
+      <p>No server round-trip. Every step below executes on-device using WebAssembly (ONNX Runtime Web) via Transformers.js.</p>
+    </div>
+    <div class="pipeline">
+      <div class="pnode"><div class="ico">📥</div><b>Parse</b><span>PDF.js text extraction, page-tracked</span></div>
+      <div class="parrow">→</div>
+      <div class="pnode"><div class="ico">✂️</div><b>Chunk</b><span>~120-word windows, 20-word overlap</span></div>
+      <div class="parrow">→</div>
+      <div class="pnode"><div class="ico">🧬</div><b>Embed</b><span>MiniLM-L6-v2, 384-dim vectors</span></div>
+      <div class="parrow">→</div>
+      <div class="pnode"><div class="ico">🔍</div><b>Retrieve</b><span>Cosine similarity + role filter</span></div>
+      <div class="parrow">→</div>
+      <div class="pnode"><div class="ico">🎯</div><b>Extract</b><span>DistilBERT-SQuAD answer span</span></div>
+      <div class="parrow">→</div>
+      <div class="pnode"><div class="ico">✅</div><b>Cite</b><span>Answer + confidence + source</span></div>
+    </div>
+    <div class="cards3">
+      <div class="card"><div class="ico">🛡️</div><h4>Honest by design</h4><p>If retrieval confidence is low, the system says so instead of guessing. Extractive answers can't hallucinate facts not present in your documents.</p></div>
+      <div class="card"><div class="ico">⚡</div><h4>Measured, not assumed</h4><p>Every answer reports real latency and a real confidence score from the model — not a canned percentage.</p></div>
+      <div class="card"><div class="ico">🔐</div><h4>Access-aware retrieval</h4><p>Restricted documents are filtered out of the candidate set before search runs, not after — the model never even sees them.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="eval" style="background:var(--surface); border-top:1px solid var(--border); border-bottom:1px solid var(--border);">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="tag">Evaluation harness</div>
+      <h2>Don't trust it — test it</h2>
+      <p>A fixed set of 6 golden question/document pairs with known expected answers, scored automatically against whatever is currently in the document library.</p>
+    </div>
+    <div style="text-align:center; margin-bottom:20px;">
+      <button class="btn btn-primary btn-sm" id="runEvalBtn">▶ Run evaluation suite</button>
+      <span id="evalHint" style="color:var(--dim); font-size:13px; margin-left:10px;">Load the 3 sample documents first</span>
+    </div>
+    <div class="metric-row" id="evalMetrics" style="display:none;"></div>
+    <div style="overflow-x:auto;">
+      <table class="evaltable" id="evalTable" style="display:none;">
+        <thead><tr><th>Question</th><th>Expected source</th><th>Retrieved top-1</th><th>Answer found</th><th>Confidence</th><th>Latency</th><th>Result</th></tr></thead>
+        <tbody id="evalBody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="readme-note">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="tag">Why this exists</div>
+      <h2>Built against a real hiring checklist</h2>
+      <p>This project follows a specific evaluation rubric: real architecture, real evaluation with baselines, honest error handling, and a working deployed demo — rather than a cosmetic chatbot UI.</p>
+    </div>
+    <div class="cards3">
+      <div class="card"><div class="ico">📦</div><h4>Models used</h4><p><code>Xenova/all-MiniLM-L6-v2</code> for embeddings and <code>Xenova/distilbert-base-cased-distilled-squad</code> for extractive QA, both quantized ONNX builds served via Transformers.js.</p></div>
+      <div class="card"><div class="ico">🧪</div><h4>What's measured</h4><p>Retrieval Recall@1/@3, mean reciprocal rank, QA confidence score, and end-to-end latency — shown live in the Evaluation tab above, not claimed in prose.</p></div>
+      <div class="card"><div class="ico">🚀</div><h4>Zero-ops deployment</h4><p>Static HTML/CSS/JS. No database, no server, no secrets to rotate. Deployed to GitHub Pages and Vercel directly from this repository.</p></div>
+    </div>
+    <div class="disclaimer">⚠️ This is a portfolio engineering demonstration, not a production compliance product. Document processing, embeddings and inference all happen locally in your browser tab via WebAssembly — no file you open here is uploaded anywhere.</div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot-grid">
+    <div>DocuSense AI — built by Ruchir Ganatra</div>
+    <div>Transformers.js · PDF.js · Zero backend</div>
+  </div>
+</footer>
+
+<script type="module">
+import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2';
+
+env.allowLocalModels = false;
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+/* ---------------- state ---------------- */
+const state = {
+  docs: [],          // {id,name,pages:[text],access,status}
+  chunks: [],        // {id,docId,docName,page,text,embedding,access}
+  embedder: null,
+  qa: null,
+  modelsReady: false,
+};
+let chunkSeq = 0, docSeq = 0;
+
+/* ---------------- sample documents ---------------- */
+const SAMPLES = [
+  {
+    name: "Acme_Employee_Handbook.txt",
+    access: "public",
+    text: `Acme Corporation Employee Handbook, 2026 Edition.
+Section 1: Leave Policy. Full-time employees accrue 18 days of paid time off per year, credited monthly. Unused leave up to 10 days may be carried into the next calendar year. Sick leave is tracked separately and provides 12 days annually, which do not carry over.
+Section 2: Remote Work. Employees may work remotely up to 3 days per week with manager approval. Fully remote arrangements require VP-level sign-off and are reviewed every 6 months.
+Section 3: Expense Reimbursement. Business expenses under 5,000 rupees can be submitted directly through the expense portal and are typically reimbursed within 7 business days. Expenses above that threshold require pre-approval from a department head before the trip or purchase.
+Section 4: Code of Conduct. Employees are expected to disclose conflicts of interest, including outside employment and financial relationships with vendors, within 15 days of the conflict arising.
+Section 5: Termination and Notice Period. The standard notice period is 60 days for confirmed employees and 15 days during the probation period, which lasts 6 months from the joining date.`
+  },
+  {
+    name: "CloudSync_Pro_Product_Spec.txt",
+    access: "public",
+    text: `CloudSync Pro — Product Specification, v3.2.
+Overview. CloudSync Pro is a cross-device file synchronization product supporting Windows, macOS, Linux and mobile clients, targeting small and mid-size businesses.
+Performance targets. The sync engine must propagate a file change to all connected devices within 4 seconds under normal network conditions, and within 30 seconds under degraded connectivity (defined as under 1 Mbps).
+Storage tiers. The Starter tier includes 100 GB of storage per user. The Business tier includes 1 TB per user with unlimited version history. The Enterprise tier is negotiated per contract and includes dedicated regional storage nodes.
+Security architecture. All files are encrypted client-side using AES-256 before upload; CloudSync never has access to unencrypted customer data. Key management uses a per-organization root key stored in a hardware security module.
+Conflict resolution. When two devices edit the same file offline, CloudSync creates a conflicted copy rather than silently overwriting either version, and notifies both users within 10 minutes of reconnection.
+Known limitations. Files larger than 20 GB are not currently supported for sync, and folder structures deeper than 40 levels may cause indexing delays on Windows clients.`
+  },
+  {
+    name: "Q3_2026_Board_Report.txt",
+    access: "finance",
+    text: `Acme Corporation — Q3 2026 Board Report (Confidential — Finance Restricted).
+Revenue. Total quarterly revenue reached 42.3 crore rupees, up 14 percent quarter-over-quarter, driven primarily by CloudSync Pro Enterprise tier renewals.
+Margins. Gross margin held at 71 percent. Operating margin improved to 18 percent from 12 percent in Q2, attributed to a reduction in cloud infrastructure spend after the Q2 migration to reserved instances.
+Headcount and cost. Headcount grew from 210 to 236 employees during the quarter, concentrated in the platform engineering and customer success functions. Total personnel cost rose 9 percent.
+Runway and cash position. The company holds 96 crore rupees in cash and equivalents, representing approximately 21 months of runway at the current burn rate of 4.5 crore rupees per month.
+Risks flagged for the board. Customer concentration risk remains elevated, with the top 5 enterprise customers representing 38 percent of Enterprise tier revenue. The board recommends accelerating mid-market acquisition to diversify the revenue base before the next funding round.`
+  }
+];
+
+const GOLDEN_EVAL = [
+  { q: "How many days of paid time off do full-time employees get per year?", doc: "Acme_Employee_Handbook.txt", expect: ["18"] },
+  { q: "How many remote work days per week are allowed without extra approval?", doc: "Acme_Employee_Handbook.txt", expect: ["3", "three"] },
+  { q: "What is the standard notice period for confirmed employees?", doc: "Acme_Employee_Handbook.txt", expect: ["60"] },
+  { q: "How much storage does the Business tier include per user?", doc: "CloudSync_Pro_Product_Spec.txt", expect: ["1 TB", "1TB", "one"] },
+  { q: "What encryption does CloudSync use before uploading files?", doc: "CloudSync_Pro_Product_Spec.txt", expect: ["AES-256", "AES256", "AES"] },
+  { q: "What was the total quarterly revenue in Q3 2026?", doc: "Q3_2026_Board_Report.txt", expect: ["42.3 crore", "42.3"] },
+];
+
+/* ---------------- DOM refs ---------------- */
+const $ = (id) => document.getElementById(id);
+const docListEl = $('docList'), docCountEl = $('docCount');
+const chatlog = $('chatlog'), askInput = $('askInput'), askBtn = $('askBtn'), suggestChips = $('suggestChips');
+const sourcesPanel = $('sourcesPanel');
+const modelStatus = $('modelStatus'), modelPct = $('modelPct'), modelBar = $('modelBar');
+const roleSelect = $('roleSelect');
+
+/* ---------------- utils ---------------- */
+function escapeHtml(s){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function cosine(a, b){
+  let dot=0, na=0, nb=0;
+  for(let i=0;i<a.length;i++){ dot += a[i]*b[i]; na += a[i]*a[i]; nb += b[i]*b[i]; }
+  return dot / (Math.sqrt(na)*Math.sqrt(nb) + 1e-9);
+}
+function chunkWords(text, size=120, overlap=20){
+  const words = text.split(/\s+/).filter(Boolean);
+  const out = [];
+  for(let i=0; i<words.length; i += (size-overlap)){
+    const slice = words.slice(i, i+size).join(' ');
+    if(slice.trim().length > 0) out.push(slice);
+    if(i+size >= words.length) break;
+  }
+  return out.length ? out : [text];
+}
+function roleCanSee(access, role){
+  if(access === 'public') return true;
+  if(access === 'finance') return role === 'finance';
+  if(access === 'manager') return role === 'manager' || role === 'finance';
+  return true;
+}
+
+/* ---------------- model loading ---------------- */
+async function ensureModels(){
+  if(state.modelsReady) return;
+  modelStatus.textContent = 'Loading embedding model (MiniLM-L6-v2)…';
+  state.embedder = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2', {
+    quantized: true,
+    progress_callback: (p) => reportProgress('embedder', p)
+  });
+  modelStatus.textContent = 'Loading extractive QA model (DistilBERT-SQuAD)…';
+  state.qa = await pipeline('question-answering', 'Xenova/distilbert-base-cased-distilled-squad', {
+    quantized: true,
+    progress_callback: (p) => reportProgress('qa', p)
+  });
+  state.modelsReady = true;
+  modelStatus.textContent = '✅ Models loaded and cached in this browser — ready.';
+  modelPct.textContent = '';
+  modelBar.style.width = '100%';
+  askInput.disabled = false; askBtn.disabled = false;
+}
+function reportProgress(which, p){
+  if(p.status === 'progress'){
+    const pct = Math.round(p.progress || 0);
+    modelPct.textContent = `${which} · ${pct}%`;
+    modelBar.style.width = pct + '%';
+  }
+}
+
+async function embed(text){
+  const out = await state.embedder(text, { pooling: 'mean', normalize: true });
+  return out.data;
+}
+
+/* ---------------- document ingestion ---------------- */
+async function addDocFromText(name, text, access){
+  const id = 'd' + (docSeq++);
+  const doc = { id, name, access, status:'processing', chunkCount:0 };
+  state.docs.push(doc);
+  renderDocs();
+  const pieces = chunkWords(text);
+  for(const piece of pieces){
+    const cid = 'c' + (chunkSeq++);
+    state.chunks.push({ id: cid, docId: id, docName: name, page: 1, text: piece, access, embedding: null });
+  }
+  doc.chunkCount = pieces.length;
+  doc.status = 'embedding';
+  renderDocs();
+  await ensureModels();
+  for(const ch of state.chunks.filter(c => c.docId === id)){
+    ch.embedding = await embed(ch.text);
+  }
+  doc.status = 'ready';
+  renderDocs();
+  refreshSuggestions();
+}
+
+async function addDocFromPDF(file){
+  const id = 'd' + (docSeq++);
+  const doc = { id, name: file.name, access:'public', status:'parsing', chunkCount:0 };
+  state.docs.push(doc);
+  renderDocs();
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  let allPieces = [];
+  for(let p=1; p<=pdf.numPages; p++){
+    const page = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    const text = content.items.map(it => it.str).join(' ');
+    const pieces = chunkWords(text);
+    for(const piece of pieces){
+      allPieces.push({ page: p, text: piece });
+    }
+  }
+  doc.status = 'embedding'; doc.chunkCount = allPieces.length; renderDocs();
+  await ensureModels();
+  for(const piece of allPieces){
+    const cid = 'c' + (chunkSeq++);
+    const embedding = await embed(piece.text);
+    state.chunks.push({ id: cid, docId: id, docName: doc.name, page: piece.page, text: piece.text, access:'public', embedding });
+  }
+  doc.status = 'ready';
+  renderDocs();
+  refreshSuggestions();
+}
+
+async function addDocFromTextFile(file){
+  const text = await file.text();
+  await addDocFromText(file.name, text, 'public');
+}
+
+function removeDoc(id){
+  state.docs = state.docs.filter(d => d.id !== id);
+  state.chunks = state.chunks.filter(c => c.docId !== id);
+  renderDocs();
+  refreshSuggestions();
+}
+
+/* ---------------- rendering ---------------- */
+function renderDocs(){
+  docCountEl.textContent = state.docs.length;
+  docListEl.innerHTML = state.docs.map(d => {
+    const pillClass = d.status !== 'ready' ? 'tag-processing' : (d.access === 'public' ? 'tag-public' : 'tag-restricted');
+    const pillText = d.status !== 'ready' ? d.status : (d.access === 'public' ? 'public' : d.access);
+    return `<div class="doc-item">
+      <div class="row1">
+        <span class="name" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}</span>
+        <button class="rm" onclick="window.__removeDoc('${d.id}')">✕</button>
+      </div>
+      <div class="meta"><span class="tag-pill ${pillClass}">${pillText}</span> · ${d.chunkCount} chunks</div>
+    </div>`;
+  }).join('') || '<p style="color:var(--dim); font-size:12.5px;">No documents loaded yet.</p>';
+}
+window.__removeDoc = removeDoc;
+
+function refreshSuggestions(){
+  const readyDocs = state.docs.filter(d => d.status === 'ready');
+  if(readyDocs.length === 0){ suggestChips.innerHTML=''; return; }
+  const suggestions = GOLDEN_EVAL.filter(g => readyDocs.some(d => d.name === g.doc)).slice(0,4).map(g => g.q);
+  suggestChips.innerHTML = suggestions.map(q => `<span class="chip" onclick="window.__askChip(this)">${escapeHtml(q)}</span>`).join('');
+}
+window.__askChip = (el) => { askInput.value = el.textContent; askQuestion(); };
+
+function renderSources(results){
+  if(!results.length){ sourcesPanel.innerHTML = '<p style="color:var(--dim); font-size:13px;">No matching chunks found for the current role.</p>'; return; }
+  sourcesPanel.innerHTML = results.map(r => `
+    <div class="src-item">
+      <div class="h"><b>${escapeHtml(r.docName)}</b><span class="score">${r.score.toFixed(3)}</span></div>
+      <p>${escapeHtml(r.text.slice(0,180))}${r.text.length>180?'…':''}</p>
+    </div>`).join('');
+}
+
+function addMsg(who, html){
+  const div = document.createElement('div');
+  div.className = 'msg ' + who;
+  div.innerHTML = html;
+  chatlog.appendChild(div);
+  chatlog.scrollTop = chatlog.scrollHeight;
+}
+
+/* ---------------- retrieval + QA ---------------- */
+async function retrieve(query, role, topK=5){
+  const qvec = await embed(query);
+  const candidates = state.chunks.filter(c => c.embedding && roleCanSee(c.access, role));
+  const scored = candidates.map(c => ({ ...c, score: cosine(qvec, c.embedding) }));
+  scored.sort((a,b) => b.score - a.score);
+  return scored.slice(0, topK);
+}
+
+async function askQuestion(){
+  const q = askInput.value.trim();
+  if(!q) return;
+  if(state.chunks.filter(c=>c.embedding).length === 0){
+    addMsg('system', 'Load at least one document first.');
+    return;
+  }
+  addMsg('user', escapeHtml(q));
+  askInput.value = '';
+  askBtn.disabled = true;
+  const thinkingId = 'think-' + Date.now();
+  addMsg('bot', `<span id="${thinkingId}">Retrieving relevant passages…</span>`);
+  const t0 = performance.now();
+
+  const role = roleSelect.value;
+  const results = await retrieve(q, role, 5);
+  renderSources(results);
+
+  const thinkEl = document.getElementById(thinkingId);
+  if(results.length === 0){
+    thinkEl.parentElement.innerHTML = `No documents visible to the <b>${role}</b> role matched this question. Try a different role or load more documents.`;
+    askBtn.disabled = false;
+    return;
+  }
+
+  if(thinkEl) thinkEl.textContent = 'Extracting grounded answer…';
+  let best = null;
+  for(const cand of results.slice(0,3)){
+    try{
+      const ans = await state.qa(q, cand.text);
+      if(!best || ans.score > best.score) best = { ...ans, source: cand };
+    } catch(e){ /* skip candidate on error */ }
+  }
+  const latency = Math.round(performance.now() - t0);
+
+  if(!best || best.score < 0.15){
+    thinkEl.parentElement.innerHTML = `I couldn't find a confident answer to that in the loaded documents.
+      <span class="conf conf-low">low confidence</span>
+      <span class="cite">Closest match: "${escapeHtml(results[0].text.slice(0,140))}…" — ${escapeHtml(results[0].docName)}</span>
+      <div style="margin-top:6px; font-size:11px; color:var(--dim);">${latency} ms</div>`;
+  } else {
+    const confClass = best.score > 0.6 ? 'conf-high' : (best.score > 0.3 ? 'conf-med' : 'conf-low');
+    const confLabel = best.score > 0.6 ? 'high confidence' : (best.score > 0.3 ? 'medium confidence' : 'low confidence');
+    thinkEl.parentElement.innerHTML = `<b>${escapeHtml(best.answer)}</b>
+      <span class="conf ${confClass}">${confLabel} · ${(best.score*100).toFixed(1)}%</span>
+      <span class="cite">Source: ${escapeHtml(best.source.docName)} — "${escapeHtml(best.source.text.slice(0,150))}…"</span>
+      <div style="margin-top:6px; font-size:11px; color:var(--dim);">${latency} ms · retrieved ${results.length} candidates</div>`;
+  }
+  askBtn.disabled = false;
+}
+
+/* ---------------- evaluation harness ---------------- */
+async function runEvaluation(){
+  const readyNames = state.docs.filter(d=>d.status==='ready').map(d=>d.name);
+  const applicable = GOLDEN_EVAL.filter(g => readyNames.includes(g.doc));
+  if(applicable.length === 0){
+    $('evalHint').textContent = 'Load the 3 sample documents first, then run the suite.';
+    return;
+  }
+  $('runEvalBtn').disabled = true;
+  $('evalHint').textContent = 'Running…';
+  const rows = [];
+  let recall1=0, recallAny=0, rrSum=0, totalLatency=0;
+
+  for(const g of applicable){
+    const t0 = performance.now();
+    const results = await retrieve(g.q, 'finance', 5); // finance role sees everything for eval
+    const top1 = results[0];
+    const rank = results.findIndex(r => r.docName === g.doc);
+    if(rank === 0) recall1++;
+    if(rank !== -1){ recallAny++; rrSum += 1/(rank+1); }
+
+    let best = null;
+    for(const cand of results.slice(0,3)){
+      try{ const ans = await state.qa(g.q, cand.text); if(!best || ans.score > best.score) best = ans; } catch(e){}
+    }
+    const latency = Math.round(performance.now() - t0);
+    totalLatency += latency;
+    const foundKeyword = best && g.expect.some(kw => best.answer.toLowerCase().includes(kw.toLowerCase()));
+    rows.push({
+      q: g.q, expectedDoc: g.doc, gotDoc: top1 ? top1.docName : '—',
+      answer: best ? best.answer : '(none)', conf: best ? best.score : 0,
+      latency, pass: rank === 0 && foundKeyword
+    });
+  }
+
+  const n = applicable.length;
+  $('evalMetrics').style.display = 'flex';
+  $('evalMetrics').innerHTML = `
+    <div class="metric-box"><div class="num">${((recall1/n)*100).toFixed(0)}%</div><div class="lbl">Recall@1</div></div>
+    <div class="metric-box"><div class="num">${((recallAny/n)*100).toFixed(0)}%</div><div class="lbl">Recall@5</div></div>
+    <div class="metric-box"><div class="num">${(rrSum/n).toFixed(2)}</div><div class="lbl">Mean Reciprocal Rank</div></div>
+    <div class="metric-box"><div class="num">${Math.round(totalLatency/n)}ms</div><div class="lbl">Avg latency / question</div></div>
+    <div class="metric-box"><div class="num">${rows.filter(r=>r.pass).length}/${n}</div><div class="lbl">Answer keyword match</div></div>
+  `;
+  $('evalTable').style.display = 'table';
+  $('evalBody').innerHTML = rows.map(r => `
+    <tr>
+      <td>${escapeHtml(r.q)}</td>
+      <td class="mono">${escapeHtml(r.expectedDoc)}</td>
+      <td class="mono">${escapeHtml(r.gotDoc)}</td>
+      <td>${escapeHtml(r.answer)}</td>
+      <td class="mono">${(r.conf*100).toFixed(1)}%</td>
+      <td class="mono">${r.latency}ms</td>
+      <td class="${r.pass ? 'pass' : 'fail'}">${r.pass ? '✓ pass' : '✗ review'}</td>
+    </tr>`).join('');
+  $('evalHint').textContent = 'Done — re-run any time, results are computed live, not cached.';
+  $('runEvalBtn').disabled = false;
+}
+
+/* ---------------- event wiring ---------------- */
+$('loadSamplesBtn').addEventListener('click', async () => {
+  $('loadSamplesBtn').disabled = true;
+  for(const s of SAMPLES){ await addDocFromText(s.name, s.text, s.access); }
+  $('loadSamplesBtn').disabled = false;
+  $('evalHint').textContent = 'Ready — click "Run evaluation suite".';
+});
+
+const dropzone = $('dropzone'), fileInput = $('fileInput');
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault(); dropzone.classList.remove('drag');
+  handleFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', e => handleFiles(e.target.files));
+function handleFiles(files){
+  for(const f of files){
+    if(f.name.toLowerCase().endsWith('.pdf')) addDocFromPDF(f);
+    else addDocFromTextFile(f);
+  }
+}
+
+askBtn.addEventListener('click', askQuestion);
+askInput.addEventListener('keydown', e => { if(e.key === 'Enter') askQuestion(); });
+$('runEvalBtn').addEventListener('click', runEvaluation);
+roleSelect.addEventListener('change', () => {
+  addMsg('system', `Switched active role to "${roleSelect.options[roleSelect.selectedIndex].text}". Future questions will respect this role's document access.`);
+});
+
+renderDocs();
+</script>
+</body>
+</html>
