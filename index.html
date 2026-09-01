@@ -6,6 +6,11 @@
 <title>DocuSense AI — Enterprise Document Intelligence, 100% Client-Side</title>
 <meta name="description" content="Upload documents, ask questions, get grounded answers with citations. Real embeddings + real extractive QA running entirely in your browser — no API keys, no backend, no data leaves your device.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A7%A0%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://huggingface.co" crossorigin>
+<link rel="preconnect" href="https://cdn-lfs.huggingface.co" crossorigin>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<link rel="dns-prefetch" href="https://huggingface.co">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
   :root{
@@ -405,29 +410,47 @@ function roleCanSee(access, role){
 }
 
 /* ---------------- model loading ---------------- */
+// Both models load in parallel (not one after another) to cut cold-start time
+// roughly in half, and progress is tracked per-model so the bar reflects real
+// combined progress rather than jumping from one model to the next.
+const progressState = { embedder: 0, qa: 0 };
+// Rough relative download size: MiniLM-L6 embedder (~23MB) vs DistilBERT-SQuAD QA (~65MB).
+const MODEL_WEIGHT = { embedder: 0.26, qa: 0.74 };
+let modelsLoadingPromise = null;
+
 async function ensureModels(){
   if(state.modelsReady) return;
-  modelStatus.textContent = 'Loading embedding model (MiniLM-L6-v2)…';
-  state.embedder = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2', {
-    quantized: true,
-    progress_callback: (p) => reportProgress('embedder', p)
-  });
-  modelStatus.textContent = 'Loading extractive QA model (DistilBERT-SQuAD)…';
-  state.qa = await pipeline('question-answering', 'Xenova/distilbert-base-cased-distilled-squad', {
-    quantized: true,
-    progress_callback: (p) => reportProgress('qa', p)
-  });
-  state.modelsReady = true;
-  modelStatus.textContent = '✅ Models loaded and cached in this browser — ready.';
-  modelPct.textContent = '';
-  modelBar.style.width = '100%';
-  askInput.disabled = false; askBtn.disabled = false;
+  if(modelsLoadingPromise) return modelsLoadingPromise; // avoid duplicate concurrent loads
+  modelStatus.textContent = 'Loading embedding + QA models in parallel (MiniLM-L6-v2 + DistilBERT-SQuAD)…';
+  modelsLoadingPromise = (async () => {
+    const [embedder, qa] = await Promise.all([
+      pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2', {
+        quantized: true,
+        progress_callback: (p) => reportProgress('embedder', p)
+      }),
+      pipeline('question-answering', 'Xenova/distilbert-base-cased-distilled-squad', {
+        quantized: true,
+        progress_callback: (p) => reportProgress('qa', p)
+      })
+    ]);
+    state.embedder = embedder;
+    state.qa = qa;
+    state.modelsReady = true;
+    modelStatus.textContent = '✅ Models loaded and cached in this browser — ready.';
+    modelPct.textContent = '';
+    modelBar.style.width = '100%';
+    askInput.disabled = false; askBtn.disabled = false;
+  })();
+  return modelsLoadingPromise;
 }
 function reportProgress(which, p){
   if(p.status === 'progress'){
-    const pct = Math.round(p.progress || 0);
-    modelPct.textContent = `${which} · ${pct}%`;
-    modelBar.style.width = pct + '%';
+    progressState[which] = Math.round(p.progress || 0);
+    const combined = Math.round(
+      progressState.embedder * MODEL_WEIGHT.embedder + progressState.qa * MODEL_WEIGHT.qa
+    );
+    modelPct.textContent = `embedder ${progressState.embedder}% · qa ${progressState.qa}% · overall ${combined}%`;
+    modelBar.style.width = combined + '%';
   }
 }
 
