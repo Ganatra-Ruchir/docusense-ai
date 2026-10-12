@@ -1,3 +1,5 @@
+> **V2 upgrade:** [feature ledger, usage and validation](V2_RELEASE.md).
+
 # DocuSense AI
 
 Enterprise document intelligence (retrieval-augmented Q&A) that runs **entirely client-side** — no backend, no API keys, no database, no data leaving the browser tab.
