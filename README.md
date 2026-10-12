@@ -91,3 +91,7 @@ The evaluation harness described above functions as an integration test: it exer
 ## Tech stack
 
 `Transformers.js` (ONNX Runtime Web / WASM) · `PDF.js` · vanilla HTML/CSS/JS · zero backend, zero API keys, zero build tooling.
+
+## Regression checks
+
+Requires Node.js 18 or newer. Run `node --test tests/ask-question.test.cjs` to check recovery from retrieval failures, chat clearing during inference, and duplicate submissions. These checks stub model inference; they do not measure real model quality.
