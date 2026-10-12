@@ -480,7 +480,7 @@ async function ingestDocument(name, access, displayName, isSample, parse){
   state.docs.push(doc);
   renderDocs();
   try {
-  const pieces = await parse();
+  const pieces = await parse(() => state.docs.includes(doc));
   if(!state.docs.includes(doc)) return;
   if(!pieces.length) throw new Error('No readable text found. Scanned PDFs need OCR first.');
   if(pieces.length > MAX_DOCUMENT_CHUNKS) throw new Error('Document is too long. Split it into smaller files.');
@@ -515,14 +515,16 @@ async function addDocFromText(name, text, access, displayName, isSample){
 }
 
 async function addDocFromPDF(file){
-  return ingestDocument(file.name, 'public', file.name, false, async () => {
+  return ingestDocument(file.name, 'public', file.name, false, async isActive => {
   const buf = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
   try {
   let allPieces = [];
   for(let p=1; p<=pdf.numPages; p++){
+    if(!isActive()) return [];
     const page = await pdf.getPage(p);
     const content = await page.getTextContent();
+    if(!isActive()) return [];
     const text = content.items.map(it => it.str).join(' ');
     const pieces = chunkWords(text);
     for(const piece of pieces){
@@ -674,6 +676,11 @@ async function askQuestion(){
   const thinkEl = document.getElementById(thinkingId);
   // Clearing chat while inference runs removes the pending response.
   if(!thinkEl) return;
+  if(results.some(r => r.docId && !state.docs.some(d => d.id === r.docId))) {
+    thinkEl.textContent = 'A source document was removed. Please ask again.';
+    sourcesPanel.textContent = 'Sources changed during this search.';
+    return;
+  }
   renderSources(results, q);
   if(results.length === 0){
     thinkEl.parentElement.innerHTML = `No documents visible to the <b>${role}</b> role matched this question. Try a different role or load more documents.`;
@@ -692,11 +699,16 @@ async function askQuestion(){
   }
   const latency = Math.round(performance.now() - t0);
   if(!thinkEl.isConnected) return;
+  if(results.some(r => r.docId && !state.docs.some(d => d.id === r.docId))) {
+    thinkEl.textContent = 'A source document was removed. Please ask again.';
+    sourcesPanel.textContent = 'Sources changed during this search.';
+    return;
+  }
 
   if(!best || best.score < 0.15){
     thinkEl.parentElement.innerHTML = `I couldn't find a confident answer to that in the loaded documents.
       <span class="conf conf-low">low confidence</span>
-      <span class="cite">Closest match: "${escapeHtml(results[0].text.slice(0,140))}…" — ${escapeHtml(results[0].docName)}</span>
+      <span class="cite">Closest match: "${escapeHtml(results[0].text.slice(0,140))}…" — ${escapeHtml(results[0].docName)} · page ${results[0].page}</span>
       <div style="margin-top:8px; font-size:12px; color:var(--muted);">Try rephrasing the question, switching to a role with broader access, or loading more documents.</div>
       <div style="margin-top:6px; font-size:11px; color:var(--dim);">${latency} ms</div>`;
   } else {
@@ -814,7 +826,8 @@ $('loadSamplesBtn').addEventListener('click', async () => {
   $('loadSamplesBtn').disabled = true;
   for(const s of SAMPLES){ await addDocFromText(s.name, s.text, s.access, s.displayName, true); }
   $('loadSamplesBtn').disabled = false;
-  $('evalHint').textContent = 'Ready — click "Run evaluation suite".';
+  $('evalHint').textContent = SAMPLES.every(s => state.docs.some(d => d.isSample && d.name === s.name && d.status === 'ready'))
+    ? 'Ready — click "Run evaluation suite".' : 'Some samples failed. Remove failed documents and retry.';
 });
 
 const dropzone = $('dropzone'), fileInput = $('fileInput');
@@ -825,7 +838,7 @@ dropzone.addEventListener('drop', e => {
   e.preventDefault(); dropzone.classList.remove('drag');
   handleFiles(e.dataTransfer.files);
 });
-fileInput.addEventListener('change', e => handleFiles(e.target.files));
+fileInput.addEventListener('change', e => { handleFiles(e.target.files); fileInput.value = ''; });
 function handleFiles(files){
   for(const f of files){
     if(f.size > MAX_FILE_BYTES){

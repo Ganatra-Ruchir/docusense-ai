@@ -76,3 +76,19 @@ test('Enter or suggestion cannot start a duplicate in-flight question', async ()
   assert.equal(app.context.askInput.value, 'What is the policy?');
   assert.equal(app.pending(), undefined);
 });
+
+test('removing the source during QA cancels its answer and citation', async () => {
+  let resolve, started;
+  const ready = new Promise(r => {started=r;});
+  const app = setup(async () => [{docId:'d1', page:2, text:'example', docName:'sample'}],
+    () => new Promise(r => {resolve=r; started();}));
+  app.context.state.docs=[{id:'d1'}];
+  const running=app.context.askQuestion();
+  await ready;
+  app.context.state.docs=[];
+  resolve({answer:'example', score:0.9});
+  await running;
+  assert.match(app.pending().textContent, /document was removed/);
+  assert.equal(app.pending().parentElement.innerHTML, '');
+  assert.equal(app.button.disabled, false);
+});

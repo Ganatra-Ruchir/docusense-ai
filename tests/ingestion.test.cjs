@@ -73,3 +73,20 @@ test('model loading can retry after rejected download', async () => {
   await app.ensureModels();
   assert.equal(app.state.modelsReady, true);
 });
+
+test('removing a PDF during parsing stops later pages and releases it', async () => {
+  const app=setup();
+  let resolve, started, pages=0, destroyed=false;
+  const ready=new Promise(r => {started=r;});
+  app.context.pdfjsLib={getDocument:() => ({promise:Promise.resolve({numPages:10,
+    getPage:async () => {pages++; return {getTextContent:() => new Promise(r => {resolve=r; started();})};},
+    destroy:async () => {destroyed=true;}})})};
+  const running=app.context.addDocFromPDF({name:'cancel.pdf', arrayBuffer:async () => new ArrayBuffer(0)});
+  await ready;
+  app.context.removeDoc(app.context.state.docs[0].id);
+  resolve({items:[{str:'text'}]});
+  await running;
+  assert.equal(pages, 1);
+  assert.equal(destroyed, true);
+  assert.equal(app.context.state.chunks.length, 0);
+});
