@@ -552,7 +552,7 @@ function refreshSuggestions(){
   const suggestions = GOLDEN_EVAL.filter(g => readyDocs.some(d => (d.displayName || d.name) === g.doc)).slice(0,4).map(g => g.q);
   suggestChips.innerHTML = suggestions.map(q => `<span class="chip" onclick="window.__askChip(this)">${escapeHtml(q)}</span>`).join('');
 }
-window.__askChip = (el) => { askInput.value = el.textContent; askQuestion(); };
+window.__askChip = (el) => { if(askBtn.disabled) return; askInput.value = el.textContent; askQuestion(); };
 
 // Bolds any word from the query (3+ letters) that appears in the snippet, so the
 // reader can see at a glance why this chunk was retrieved — not just trust the score.
@@ -656,6 +656,7 @@ async function askQuestion(){
       const ans = await state.qa(q, cand.text);
       if(!best || ans.score > best.score) best = { ...ans, source: cand };
     } catch(e){ /* skip candidate on error */ }
+    if(!thinkEl.isConnected) return;
   }
   const latency = Math.round(performance.now() - t0);
   if(!thinkEl.isConnected) return;
@@ -686,12 +687,16 @@ async function askQuestion(){
   }
   } catch(e) {
     const pending = document.getElementById(thinkingId);
-    if(pending) pending.textContent = 'The search could not finish. Please try again.';
+    if(pending) {
+      pending.textContent = 'The search could not finish. Please try again.';
+      sourcesPanel.textContent = 'No sources available because this search could not finish.';
+    }
   } finally {
     askBtn.disabled = false;
   }
 }
 window.__forceAsk = (q) => {
+  if(askBtn.disabled) return;
   if(!state.forcedQueries) state.forcedQueries = new Set();
   state.forcedQueries.add(q);
   askInput.value = q;
