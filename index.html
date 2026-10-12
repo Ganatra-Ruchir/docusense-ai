@@ -605,6 +605,7 @@ function looksLikeFragment(q){
 }
 
 async function askQuestion(){
+  if(askBtn.disabled) return;
   const q = askInput.value.trim();
   if(!q) return;
   if(state.chunks.filter(c=>c.embedding).length === 0){
@@ -634,11 +635,14 @@ async function askQuestion(){
   addMsg('bot', `<span id="${thinkingId}">Retrieving relevant passages…</span>`);
   const t0 = performance.now();
 
+  try {
   const role = roleSelect.value;
   const results = await retrieve(q, role, 5);
-  renderSources(results, q);
 
   const thinkEl = document.getElementById(thinkingId);
+  // Clearing chat while inference runs removes the pending response.
+  if(!thinkEl) return;
+  renderSources(results, q);
   if(results.length === 0){
     thinkEl.parentElement.innerHTML = `No documents visible to the <b>${role}</b> role matched this question. Try a different role or load more documents.`;
     askBtn.disabled = false;
@@ -654,6 +658,7 @@ async function askQuestion(){
     } catch(e){ /* skip candidate on error */ }
   }
   const latency = Math.round(performance.now() - t0);
+  if(!thinkEl.isConnected) return;
 
   if(!best || best.score < 0.15){
     thinkEl.parentElement.innerHTML = `I couldn't find a confident answer to that in the loaded documents.
@@ -679,7 +684,12 @@ async function askQuestion(){
       ${fragmentNote}
       <div style="margin-top:6px; font-size:11px; color:var(--dim);">${latency} ms · retrieved ${results.length} candidates</div>`;
   }
-  askBtn.disabled = false;
+  } catch(e) {
+    const pending = document.getElementById(thinkingId);
+    if(pending) pending.textContent = 'The search could not finish. Please try again.';
+  } finally {
+    askBtn.disabled = false;
+  }
 }
 window.__forceAsk = (q) => {
   if(!state.forcedQueries) state.forcedQueries = new Set();
