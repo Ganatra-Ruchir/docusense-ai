@@ -15,6 +15,7 @@ function setup(retrieve, qa = async () => ({answer:'example', score:0.8})) {
     askBtn:button, askInput:{value:'What is the policy?'},
     state:{chunks:[{embedding:[1]}], docs:[], qa},
     looksLikeFragment:() => false, escapeHtml:s => s,
+    qaCandidates:results => results.slice(0,1),
     addMsg:() => { pending = {textContent:'', isConnected:true, parentElement:{innerHTML:''}}; },
     performance:{now:() => 1}, roleSelect:{value:'public'},
     retrieve, renderSources:() => {sourceRenders++;}, sourcesPanel:{textContent:'old sources'}, window:{},

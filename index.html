@@ -614,6 +614,16 @@ async function retrieve(query, role, topK=5){
   return scored.slice(0, topK);
 }
 
+function qaCandidates(results){
+  // Retrieval chooses the context; span confidence cannot promote an
+  // unrelated document over the most relevant passage.
+  return results.slice(0,1);
+}
+function answerMatches(answer, keywords){
+  const normalize = s => s.toLowerCase().replace(/\s*([.\-])\s*/g, '$1').replace(/\s+/g, ' ').trim();
+  return keywords.some(kw => normalize(answer).includes(normalize(kw)));
+}
+
 // Extractive QA models (DistilBERT-SQuAD) are trained on full, well-formed
 // questions over prose paragraphs. A one- or two-word fragment like "name" or
 // "Certificate ?" gives the span-selection model almost no context, and it
@@ -673,7 +683,7 @@ async function askQuestion(){
 
   if(thinkEl) thinkEl.textContent = 'Extracting grounded answer…';
   let best = null;
-  for(const cand of results.slice(0,3)){
+  for(const cand of qaCandidates(results)){
     try{
       const ans = await state.qa(q, cand.text);
       if(!best || ans.score > best.score) best = { ...ans, source: cand };
@@ -758,12 +768,12 @@ async function runEvaluation(){
     if(rank !== -1){ recallAny++; rrSum += 1/(rank+1); }
 
     let best = null;
-    for(const cand of results.slice(0,3)){
+    for(const cand of qaCandidates(results)){
       try{ const ans = await state.qa(g.q, cand.text); if(!best || ans.score > best.score) best = ans; } catch(e){}
     }
     const latency = Math.round(performance.now() - t0);
     totalLatency += latency;
-    const foundKeyword = best && g.expect.some(kw => best.answer.toLowerCase().includes(kw.toLowerCase()));
+    const foundKeyword = best && answerMatches(best.answer, g.expect);
     rows.push({
       q: g.q, expectedDoc: g.doc, gotDoc: top1 ? top1.docName : '—',
       answer: best ? best.answer : '(none)', conf: best ? best.score : 0,
