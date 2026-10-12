@@ -95,3 +95,9 @@ The evaluation harness described above functions as an integration test: it exer
 ## Regression checks
 
 Requires Node.js 18 or newer. Run `node --test tests/ask-question.test.cjs` to check recovery from retrieval failures, chat clearing during inference, and duplicate submissions. These checks stub model inference; they do not measure real model quality.
+
+## V2 reliability upgrade
+
+Uploads now index atomically: failed or removed documents never publish partial embeddings. Model downloads can retry after a failed attempt. Empty/scanned PDFs show an explicit error; parsed PDF resources are released after use. Uploads are limited to 10 MB per file and 500 chunks per document. Answers and retrieval sources include page numbers.
+
+Run `node --test tests/*.test.cjs`. GitHub Actions runs the regression suite on pushes and pull requests. Inference and PDF parsing are stubbed in unit tests; those tests do not validate model quality, actual browser memory use, or production authorization. Roles remain a client-side demonstration, not a security boundary. OCR and cross-document synthesis are not implemented.

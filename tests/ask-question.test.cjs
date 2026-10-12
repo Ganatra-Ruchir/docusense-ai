@@ -15,6 +15,7 @@ function setup(retrieve, qa = async () => ({answer:'example', score:0.8})) {
     askBtn:button, askInput:{value:'What is the policy?'},
     state:{chunks:[{embedding:[1]}], docs:[], qa},
     looksLikeFragment:() => false, escapeHtml:s => s,
+    qaCandidates:results => results.slice(0,1),
     addMsg:() => { pending = {textContent:'', isConnected:true, parentElement:{innerHTML:''}}; },
     performance:{now:() => 1}, roleSelect:{value:'public'},
     retrieve, renderSources:() => {sourceRenders++;}, sourcesPanel:{textContent:'old sources'}, window:{},
@@ -74,4 +75,20 @@ test('Enter or suggestion cannot start a duplicate in-flight question', async ()
   await app.context.askQuestion();
   assert.equal(app.context.askInput.value, 'What is the policy?');
   assert.equal(app.pending(), undefined);
+});
+
+test('removing the source during QA cancels its answer and citation', async () => {
+  let resolve, started;
+  const ready = new Promise(r => {started=r;});
+  const app = setup(async () => [{docId:'d1', page:2, text:'example', docName:'sample'}],
+    () => new Promise(r => {resolve=r; started();}));
+  app.context.state.docs=[{id:'d1'}];
+  const running=app.context.askQuestion();
+  await ready;
+  app.context.state.docs=[];
+  resolve({answer:'example', score:0.9});
+  await running;
+  assert.match(app.pending().textContent, /document was removed/);
+  assert.equal(app.pending().parentElement.innerHTML, '');
+  assert.equal(app.button.disabled, false);
 });
